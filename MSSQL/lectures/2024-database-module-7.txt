@@ -1,0 +1,391 @@
+-- создание представления
+create view studentAchievements AS
+select FirstName, LastName, [Name] AS subject, Assesment
+from students join Achievements
+on Students.Id = Achievements.StudentId join Subjects
+on Achievements.SubjectId = Subjects.Id;
+
+-- модификация представления
+
+Alter view studentAchievements AS
+Select firstName, lastName, [Name] AS subject, Assesment, GroupName
+From Students Join Achievements
+ON Students.Id = Achievements.StudentId Join subject
+on Achievements.SubjectId = Subjects.Id join groups
+On students.GroupId = groups.Id
+
+Alter view TeachersSubjects AS
+select FirstName, LastName, S.Name AS [subject], D.Name AS [Department Name]
+from Teachers as T join TeachersSubjects as TS on T.Id = TS.TeacherId
+join Subjects as S on S.Id = TS.SubjectId
+join departments as D on D.Id = T.departments;
+
+-- удаление представления
+
+Drop view studentAchievements;
+
+-- изменение данных через представления
+create view EditableAchievements AS
+Select Students.Id AS StudentId, SubjectId, Assesment
+from Achievements.StudentId = students.Id;
+
+select * from  EditableAchievements;
+
+-- теперь мы можем использовать представление для обновления оценок студентов
+update EditableAchievements
+set Assesment = 1
+where StudentId = 1 AND SubjectId = 2;
+
+-- удаление представления
+Drop view EditableAchievements
+
+-- пример использования After триггера
+
+CREATE trigger trgAfterInsert
+ON students
+After Insert AS
+begin
+    Print 'студент добавлен в таблицу'
+end
+
+-- проверяем
+INSERT INTO Students (FirstName, LastName, BirthDate, Grants, Email, GroupId)
+VALUES ('Иван', 'Иванов', '2000-06-01', 1000, 'ivanov@mail.com', 1);
+
+-- пример использования instead of триггера:
+CREATE trigger trgInseadOfDelete
+On Students
+instead of delete
+as
+begin
+    Print 'удаление студунтов запрещено!'
+end;
+
+-- проверяем
+delete from Students where id > 2
+
+-- создадим таблицу для логгирования
+CREATE table log (
+    Id int IDENTITY(1,1) primary key,
+    action nvarchar(50),
+    description nvarchar(255),
+    actiondate date
+);
+
+-- пример триггера на INSERT
+CREATE trigger trgLogStudentInsert
+On Students
+after insert
+as
+begin
+    insert into log (action, description, actiondate)
+    select 'INSERT', 'добавлен новый студент:' + firstName + ' ' + lastName, GETDATE()
+    from inserted;
+end;
+
+-- прроверка триггера на insert
+insert into students (firstName, lastName, birthDate, Grants, Email, GroupId)
+values ('иван', 'иванов','2000-06-01', 1000,'ivanov@mail.com', 1);
+
+-- проверяем лог:
+select * from log;
+
+
+-- пример триггера на update
+
+CREATE trigger trgLogStudentUpdate
+On Students
+After update
+as
+begin
+    insert log (action, description, actiondate)
+    select 'update', 'students has been updated: ' + firstName + ' ' + lastName, GETDATE()
+    from inserted;
+end;
+
+-- обновляем данные студента:
+ update Students
+ set Email = 'ivanov_updated@mail.com'
+ where firstName = 'ivan' and lastName = 'ivanov';
+
+-- проверяем лог:
+select * from log;
+
+
+-- пример триггера на delete
+CREATE trigger trgLogStudentDelete
+On students
+After delete
+as
+begin
+    insert into log (action, description, actiondate)
+    select 'delete', 'удален студент: ' + firstName + ' ' + lastName, GETDATE()
+    from deleted;
+end;
+
+-- удаляем студента
+delete from Students
+where firstName = 'ivan' and lastName = 'ivanov';
+
+-- проверяем лог:
+SELECT * FROM Log;
+
+
+-- удаляем тригеры:
+drop trigger trgAfterInsert;
+Drop trigger trgInseadOfDelete;
+DROP TRIGGER trgLogStudentInsert;
+DROP TRIGGER trgLogStudentUpdate;
+DROP TRIGGER trgLogStudentDelete;
+
+/*
+Хранимая процедура — это заранее скомпилированный SQL-код, который хранится и выполняется на сервере базы данных.
+
+Хранимые процедуры позволяют:
+	1 Выполнять сложные SQL-операции.
+	2 Повторно использовать код.
+	3 Улучшать производительность за счет предкомпиляции.
+	4 Повышать безопасность, скрывая сложные запросы от пользователей.
+
+Основные особенности:
+
+	1 Хранимая процедура сохраняется в базе данных и может быть вызвана в любое время.
+	2 Она может принимать параметры и возвращать значения.
+	3 Может использоваться для выполнения операций с данными (INSERT, UPDATE, DELETE) или для выборки данных (SELECT).
+*/
+
+-- Пример хранимой процедуры:
+CREATE PROCEDURE GetAllStudents AS
+BEGIN
+    SELECT * FROM Students;
+END;
+
+-- Пример процедуры с добавлением данных:
+CREATE PROCEDURE AddNewStudent
+    @FirstName NVARCHAR(50),
+    @LastName NVARCHAR(50),
+    @BirthDate DATE
+AS
+BEGIN
+    INSERT INTO Students (FirstName, LastName, BirthDate)
+    VALUES (@FirstName, @LastName, @BirthDate);
+END;
+
+-- Для выполнения хранимой процедуры используется команда EXEC или EXECUTE.
+EXEC GetAllStudents;
+
+-- Пример вызова процедуры с параметрами:
+EXEC AddNewStudent @FirstName = 'John', @LastName = 'Doe', @BirthDate = '2000-01-01';
+
+SELECT * FROM Students;
+
+-- Пример процедуры с параметрами:
+CREATE PROCEDURE GetStudentsByGroup
+    @GroupId INT
+AS
+BEGIN
+    SELECT * FROM Students
+    WHERE GroupId = @GroupId;
+END;
+
+-- Вызов процедуры с передачей параметра:
+EXEC GetStudentsByGroup @GroupId = 2;
+
+-- Вызов процедуры с передачей параметра:
+CREATE PROCEDURE GetStudentsByLastNameAndGroup
+    @LastName NVARCHAR(50),
+    @GroupId INT
+AS
+BEGIN
+    SELECT * FROM Students
+    WHERE LastName = @LastName AND GroupId = @GroupId;
+END;
+
+-- Вызов:
+EXEC GetStudentsByLastNameAndGroup @LastName = 'Volkov', @GroupId = 2;
+
+-- Пример процедуры с выходным параметром:
+CREATE PROCEDURE GetStudentCountByGroup
+    @GroupId INT,
+    @StudentCount INT OUTPUT
+AS
+BEGIN
+    SELECT @StudentCount = COUNT(*)
+    FROM Students
+    WHERE GroupId = @GroupId;
+END;
+
+-- Для вызова процедуры с выходным параметром необходимо использовать ключевое слово OUTPUT
+DECLARE @Count INT;
+EXEC GetStudentCountByGroup @GroupId = 2, @StudentCount = @Count OUTPUT;
+SELECT @Count AS TotalStudents;
+
+/*
+	Хранимая процедура может возвращать код выполнения с помощью команды RETURN. Значения, возвращаемые с
+	помощью RETURN, обычно используются для передачи статуса выполнения (например, успех или ошибка).
+*/
+CREATE PROCEDURE DeleteStudent
+    @StudentId INT
+AS
+BEGIN
+    DELETE FROM Students
+    WHERE Id = @StudentId;
+
+    IF @@ROWCOUNT > 0
+        RETURN 1;  -- Успех
+    ELSE
+        RETURN -1; -- Ошибка: студент не найден
+END;
+
+-- Вызов процедуры и получение возвращаемого значения:
+DECLARE @Result INT;
+EXEC @Result = DeleteStudent @StudentId = 10;
+IF @Result = 1
+    PRINT 'Студент удален успешно';
+ELSE
+    PRINT 'Ошибка: студент не найден';
+
+-- Удаление процедур
+DROP PROCEDURE GetAllStudents;
+DROP PROCEDURE AddNewStudent;
+DROP PROCEDURE GetStudentsByGroup;
+DROP PROCEDURE GetStudentsByLastNameAndGroup;
+DROP PROCEDURE GetStudentCountByGroup;
+DROP PROCEDURE DeleteStudent;
+
+/*
+	Пользовательская функция — это функция, создаваемая пользователем для выполнения определённых вычислений
+	или возврата данных. Она похожа на встроенные функции SQL (например, LEN(), SUM()), но пользователь сам
+	задаёт её логику.
+
+	Основные особенности пользовательских функций:
+	1) Функция всегда возвращает значение (или таблицу).
+	2) Может принимать параметры для обработки.
+	3) Не может изменять данные в базе (например, выполнять INSERT, UPDATE, DELETE).
+	4) Функции могут быть использованы в SQL-запросах в любом месте, где может быть использована встроенная функция.
+*/
+
+-- Пример простой функции:
+CREATE FUNCTION dbo.GetStudentAge(@BirthDate DATE)
+RETURNS INT
+AS
+BEGIN
+    RETURN DATEDIFF(YEAR, @BirthDate, GETDATE());
+END;
+
+
+-- Вызов функции:
+SELECT dbo.GetStudentAge('2000-05-20') AS Age;
+
+-- Удаление функции:
+DROP FUNCTION dbo.GetStudentAge;
+
+/*
+	Скалярная функция возвращает одно значение (например, число, строку, дату).
+	Синтаксис создания скалярной функции:
+
+	CREATE FUNCTION function_name(@parameter data_type)
+	RETURNS data_type
+	AS
+	BEGIN
+		-- логика вычислений
+		RETURN результат;
+	END;
+*/
+
+-- Пример скалярной функции:
+CREATE FUNCTION dbo.GetFullName(
+	@FirstName NVARCHAR(50),
+	@LastName NVARCHAR(50)
+	)
+RETURNS NVARCHAR(100)
+AS
+BEGIN
+    RETURN @FirstName + ' ' + @LastName;
+END;
+
+-- Вызов функции:
+SELECT dbo.GetFullName('Иван', 'Иванов') AS FullName;
+
+-- Удаление функции:
+DROP FUNCTION dbo.GetFullName;
+
+/*
+	Практическое задание: Написать скалярную функцию, которая принимает два числа и возвращает их сумму.
+*/
+
+/*
+	Функции с табличными значениями возвращают таблицу, что позволяет использовать их в запросах,
+	как если бы это были обычные таблицы.
+
+	1) Inline Table-Valued Function
+	Inline-функция возвращает результат запроса в виде таблицы без использования BEGIN и END.
+	Функция определяет только один SELECT-запрос.
+*/
+
+-- Пример Inline-функции:
+CREATE FUNCTION dbo.GetStudentsByGroup(@GroupId INT)
+RETURNS TABLE
+AS
+RETURN
+(
+    SELECT Id, FirstName, LastName, BirthDate
+    FROM Students
+    WHERE GroupId = @GroupId
+);
+
+-- Вызов функции:
+SELECT * FROM dbo.GetStudentsByGroup(2);
+
+-- Удаление функции:
+DROP FUNCTION dbo.GetStudentsByGroup;
+
+/*
+	Multi-Statement Table-Valued Function (10 минут)
+	Multi-statement функция позволяет выполнить несколько SQL-операторов и возвратить таблицу.
+*/
+
+-- Пример Multi-Statement функции:
+CREATE FUNCTION dbo.GetRecentStudents(@Year INT)
+RETURNS @Students TABLE
+(
+    Id INT,
+    FirstName NVARCHAR(50),
+    LastName NVARCHAR(50),
+    BirthDate DATE
+)
+AS
+BEGIN
+    INSERT INTO @Students
+    SELECT Id, FirstName, LastName, BirthDate
+    FROM Students
+    WHERE YEAR(BirthDate) >= @Year;
+
+    RETURN;
+END;
+
+-- Вызов функции:
+SELECT * FROM dbo.GetRecentStudents(2001);
+
+-- Удаление функции:
+DROP FUNCTION dbo.GetRecentStudents;
+
+/*
+	Практическое задание: Написать функцию, которая возвращает список студентов, возраст которых превышает
+	определённое значение.
+*/
+
+
+/*
+	Отличие пользовательских функций и хранимых процедур
+	Характеристика				Функция												Хранимая процедура
+	Возвращаемое значение		Всегда возвращает одно значение или таблицу			Может не возвращать значение
+	Использование в SQL			Можно использовать в SELECT, WHERE					Нельзя использовать в SQL-запросах
+	Изменение данных			Не может изменять данные							Может выполнять INSERT, UPDATE, DELETE
+	Входные/выходные параметры	Принимает только входные параметры					Может иметь входные и выходные параметры
+	Транзакции					Не поддерживает управление транзакциями				Может управлять транзакциями
+
+	Вопросы:
+		Когда лучше использовать функции, а когда — хранимые процедуры?
+		Почему функции более ограничены по сравнению с процедурами?
+*/
